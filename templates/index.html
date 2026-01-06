@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Robot Digital Twin</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+    --blue: #616161;
+    --bg: #f7f9fc;
+    --card: #ffffff;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+}
+
+* { box-sizing: border-box; }
+html, body { margin:0; padding:0; height:100%; font-family:'Roboto',sans-serif; background:var(--bg); color:var(--text); }
+.dashboard { position:relative; width:100%; height:100%; overflow:hidden; }
+
+/* ================= HEADER ================= */
+.header {
+    position:absolute; top:0; left:0; right:0;
+    height:64px; background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(12px);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 24px; border-bottom:1px solid var(--border); z-index:10;
+}
+.header h1 { font-size:18px; font-weight:700; margin:0; }
+.live-status { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--muted); }
+.live-dot { width:10px; height:10px; background:#22c55e; border-radius:50%; box-shadow:0 0 10px rgba(34,197,94,0.8); }
+
+/* ================= ROBOT ================= */
+.robot-container {
+    position:absolute; inset:0;
+    display:flex; justify-content:center; align-items:flex-end;
+    padding-bottom:50px; z-index:5; pointer-events:none;
+}
+.robot-svg { width:260px; height:260px; }
+
+/* ================= ARROW ================= */
+.arrow-container {
+    position:absolute; inset:0;
+    display:flex; justify-content:center; align-items:flex-end;
+    padding-bottom:210px; z-index:3; pointer-events:none;
+}
+.arrow-svg { width:132px; height:132px; transform: translateX(30px); transition: transform 0.15s ease-out; }
+
+/* ================= TRASH ================= */
+.trash-container {
+    position:absolute;
+    width:48px; height:48px;
+    top:50%; left:50%;
+    transform: translate(-50%, -50%);
+    z-index:4;
+    pointer-events:none;
+}
+.trash-svg { width:100%; height:100%; }
+
+/* ================= STATUS PANEL ================= */
+.status-panel {
+    position:absolute; top:84px; left:24px;
+    background:var(--card); padding:20px; border-radius:14px;
+    box-shadow:0 10px 25px rgba(0,0,0,0.08); min-width:240px; z-index:5;
+}
+.status-panel h3 { margin:0 0 14px; font-size:16px; font-weight:700; }
+.status-item { font-size:14px; margin:8px 0; display:flex; justify-content:space-between; color:var(--muted); }
+.status-item span { font-weight:600; color:var(--text); }
+.status-item img { width:16px; height:16px; margin-right:6px; vertical-align:middle; }
+
+/* ================= LOG PANEL ================= */
+.log-panel {
+    position:absolute; top:84px; right:24px; width:320px; max-height:280px;
+    background:var(--card); color:var(--text); border-radius:14px;
+    padding:14px; box-shadow:0 10px 25px rgba(0,0,0,0.08);
+    font-family:'JetBrains Mono', monospace; font-size:12px; overflow-y:auto; z-index:5;
+}
+.log-panel h3 { margin:0 0 8px; font-size:13px; font-weight:600; color:var(--blue); }
+.log-line { opacity:0.85; margin-bottom:4px; }
+</style>
+</head>
+
+<body>
+<div class="dashboard">
+
+    <!-- HEADER -->
+    <header class="header">
+        <h1>Robot Digital Twin</h1>
+        <div class="live-status"><span class="live-dot"></span>Live telemetry</div>
+    </header>
+
+    <!-- ARROW -->
+    <div class="arrow-container">
+        <img id="direction-arrow" class="arrow-svg" src="/static/images/arrow-narrow-up-svgrepo-com.svg" alt="Arrow">
+    </div>
+
+    <!-- TRASH (Obstacle) -->
+    <div class="trash-container" id="trash-container">
+        <img class="trash-svg" src="/static/images/trash-bin-minimalistic-svgrepo-com.svg" alt="Obstacle">
+    </div>
+
+    <!-- ROBOT -->
+    <div class="robot-container" id="robot-container">
+        <img class="robot-svg" src="/static/images/green.svg" alt="Robot">
+    </div>
+
+    <!-- STATUS PANEL -->
+    <div class="status-panel">
+        <h3>Robot Status</h3>
+        <div class="status-item">
+            <img src="/static/images/battery-bolt-svgrepo-com.svg" alt="Battery"> Battery <span id="battery">--</span>
+        </div>
+        <div class="status-item">
+            <img src="/static/images/temperature-svgrepo-com.svg" alt="Temp"> Temperature <span id="temperature">--</span>
+        </div>
+        <div class="status-item">
+            <img src="/static/images/speedometer-outline-svgrepo-com.svg" alt="Speed"> Speed <span id="speed">--</span>
+        </div>
+        <div class="status-item">
+            <img src="/static/images/steering-auto-car-turn-vehicle-svgrepo-com.svg" alt="Steering"> Steering <span id="steering">--</span>
+        </div>
+    </div>
+
+    <!-- LOG PANEL -->
+    <div class="log-panel">
+        <h3>Telemetry Log</h3>
+        <div id="log"></div>
+    </div>
+
+</div>
+
+<script>
+let currentAngle = 0;
+
+// Cache elements
+const battery = document.getElementById("battery");
+const temperature = document.getElementById("temperature");
+const speedEl = document.getElementById("speed");
+const steeringEl = document.getElementById("steering");
+const directionArrow = document.getElementById("direction-arrow");
+const robot = document.getElementById("robot-container");
+const trash = document.getElementById("trash-container");
+const logEl = document.getElementById("log");
+
+function log(message) {
+    const line = document.createElement("div");
+    line.className = "log-line";
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+// Map obstacle distance to pixels (max 200cm => 200px)
+function mapDistanceToPixels(distance) {
+    return Math.min(distance, 200);
+}
+
+async function fetchStatus() {
+    try {
+        const res = await fetch("/api/status");
+        if(!res.ok) throw new Error("HTTP error " + res.status);
+        const data = await res.json();
+
+        battery.innerText = data.battery;
+        temperature.innerText = data.temperature;
+        speedEl.innerText = data.speed;
+        steeringEl.innerText = data.steering;
+
+        const targetAngle = data.steering * 10;
+        currentAngle += (targetAngle - currentAngle) * 0.2;
+
+        // Rotate arrow
+        directionArrow.style.transform = `translateX(30px) rotate(${currentAngle}deg)`;
+        robot.style.transform = `rotate(${currentAngle}deg)`;
+
+        // Position trash bin according to front sensor
+        const frontDist = mapDistanceToPixels(data.obstacles.front);
+        const angleRad = currentAngle * Math.PI / 180;
+        const robotRect = robot.getBoundingClientRect();
+        const centerX = robotRect.left + robotRect.width/2;
+        const centerY = robotRect.top + robotRect.height/2;
+
+        // Compute obstacle position in front of robot
+        const obsX = centerX + frontDist * Math.cos(angleRad);
+        const obsY = centerY + frontDist * Math.sin(angleRad);
+
+        trash.style.left = `${obsX}px`;
+        trash.style.top = `${obsY}px`;
+
+        log(`SPD:${data.speed} STR:${data.steering} BAT:${data.battery} FRONT_OBS:${data.obstacles.front}cm`);
+    } catch (err) {
+        log("ERROR: telemetry lost");
+        console.error(err);
+    }
+}
+
+setInterval(fetchStatus, 600);
+</script>
+</body>
+</html>
