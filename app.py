@@ -21,7 +21,7 @@ def home():
 def about():
     data_format = "<BBBHHBBBff"
     expected_length = struct.calcsize(data_format)
-    mo_convert = lambda v: -v if v < 256 else v - 256
+    mo_convert = lambda v: v // 256 if v % 256 else -(v // 256)
 
     # post
     if request.method == "POST":
