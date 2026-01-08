@@ -1,6 +1,9 @@
 import struct
 from database import close_connection, init_db, insert_record, get_latest_record
 from flask import Flask, jsonify, render_template, request
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -36,18 +39,18 @@ def about():
     # get
     else:
         keys = [
-            "row",
-            "ts",
             "id",
-            "st",
-            "ln",
-            "mo_l",
-            "mo_r",
-            "ul_f",
-            "ul_r",
-            "gr",
-            "gy_z",
-            "hd",
+            "time",
+            "robot_id",
+            "robot_state",
+            "line",
+            "motor_left",
+            "motor_right",
+            "ultra_front",
+            "ultra_right",
+            "grip",
+            "gyro_z",
+            "heading",
         ]
         values = get_latest_record()
         return jsonify(dict(zip(keys, values)))
@@ -57,4 +60,4 @@ with app.app_context():
     init_db()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')

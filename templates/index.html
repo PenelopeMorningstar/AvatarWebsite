@@ -62,7 +62,7 @@ html, body { margin:0; padding:0; height:100%; font-family:'Roboto',sans-serif; 
 
 /* ================= STATUS PANEL ================= */
 .status-panel {
-    position:absolute; top:84px; left:24px;
+    position:absolute; top:84px; right:24px;
     background:var(--card); padding:20px; border-radius:14px;
     box-shadow:0 10px 25px rgba(0,0,0,0.08); min-width:240px; z-index:5;
 }
@@ -73,7 +73,7 @@ html, body { margin:0; padding:0; height:100%; font-family:'Roboto',sans-serif; 
 
 /* ================= LOG PANEL ================= */
 .log-panel {
-    position:absolute; top:84px; right:24px; width:320px; max-height:280px;
+    position:absolute; top:84px; left:24px; width:320px; max-height:280px;
     background:var(--card); color:var(--text); border-radius:14px;
     padding:14px; box-shadow:0 10px 25px rgba(0,0,0,0.08);
     font-family:'JetBrains Mono', monospace; font-size:12px; overflow-y:auto; z-index:5;
@@ -89,7 +89,9 @@ html, body { margin:0; padding:0; height:100%; font-family:'Roboto',sans-serif; 
     <!-- HEADER -->
     <header class="header">
         <h1>Robot Digital Twin</h1>
-        <div class="live-status"><span class="live-dot"></span>Live telemetry</div>
+        <div class="live-status" id="live-status-container">
+            <span class="live-dot" id="live-dot"></span><span id="live-text">Live telemetry</span>
+        </div>
     </header>
 
     <!-- ARROW -->
@@ -111,16 +113,37 @@ html, body { margin:0; padding:0; height:100%; font-family:'Roboto',sans-serif; 
     <div class="status-panel">
         <h3>Robot Status</h3>
         <div class="status-item">
-            <img src="/static/images/battery-bolt-svgrepo-com.svg" alt="Battery"> Battery <span id="battery">--</span>
+            <span>Time</span> <span id="val-time">--</span>
         </div>
         <div class="status-item">
-            <img src="/static/images/temperature-svgrepo-com.svg" alt="Temp"> Temperature <span id="temperature">--</span>
+            <span>Robot ID</span> <span id="val-robot-id">--</span>
         </div>
         <div class="status-item">
-            <img src="/static/images/speedometer-outline-svgrepo-com.svg" alt="Speed"> Speed <span id="speed">--</span>
+            <span>State</span> <span id="val-state">--</span>
         </div>
         <div class="status-item">
-            <img src="/static/images/steering-auto-car-turn-vehicle-svgrepo-com.svg" alt="Steering"> Steering <span id="steering">--</span>
+            <span>Line</span> <span id="val-line">--</span>
+        </div>
+        <div class="status-item">
+            <span>Motor L</span> <span id="val-motor-l">--</span>
+        </div>
+        <div class="status-item">
+            <span>Motor R</span> <span id="val-motor-r">--</span>
+        </div>
+        <div class="status-item">
+            <span>Ultra Front</span> <span id="val-ultra-f">--</span>
+        </div>
+        <div class="status-item">
+            <span>Ultra Right</span> <span id="val-ultra-r">--</span>
+        </div>
+        <div class="status-item">
+            <span>Grip</span> <span id="val-grip">--</span>
+        </div>
+        <div class="status-item">
+            <span>Gyro Z</span> <span id="val-gyro-z">--</span>
+        </div>
+        <div class="status-item">
+            <span>Heading</span> <span id="val-heading">--</span>
         </div>
     </div>
 
@@ -136,14 +159,24 @@ html, body { margin:0; padding:0; height:100%; font-family:'Roboto',sans-serif; 
 let currentAngle = 0;
 
 // Cache elements
-const battery = document.getElementById("battery");
-const temperature = document.getElementById("temperature");
-const speedEl = document.getElementById("speed");
-const steeringEl = document.getElementById("steering");
+const valTime = document.getElementById("val-time");
+const valRobotId = document.getElementById("val-robot-id");
+const valState = document.getElementById("val-state");
+const valLine = document.getElementById("val-line");
+const valMotorL = document.getElementById("val-motor-l");
+const valMotorR = document.getElementById("val-motor-r");
+const valUltraF = document.getElementById("val-ultra-f");
+const valUltraR = document.getElementById("val-ultra-r");
+const valGrip = document.getElementById("val-grip");
+const valGyroZ = document.getElementById("val-gyro-z");
+const valHeading = document.getElementById("val-heading");
+
 const directionArrow = document.getElementById("direction-arrow");
 const robot = document.getElementById("robot-container");
 const trash = document.getElementById("trash-container");
 const logEl = document.getElementById("log");
+const liveDot = document.getElementById("live-dot");
+const liveText = document.getElementById("live-text");
 
 function log(message) {
     const line = document.createElement("div");
@@ -158,18 +191,53 @@ function mapDistanceToPixels(distance) {
     return Math.min(distance, 200);
 }
 
+function updateLiveStatus(lastTimeStr) {
+    // Parse the server time string (assumed UTC or local based on server config)
+    // We'll create a Date object from it.
+    const lastTime = new Date(lastTimeStr);
+    const now = new Date();
+    
+    // Check difference in seconds
+    const diffSeconds = (now - lastTime) / 1000;
+
+    if (diffSeconds < 30) {
+        liveDot.style.background = "#22c55e"; // Green
+        liveDot.style.boxShadow = "0 0 10px rgba(34,197,94,0.8)";
+        liveText.textContent = "Live telemetry";
+        liveText.style.color = "var(--muted)";
+    } else {
+        liveDot.style.background = "#ef4444"; // Red
+        liveDot.style.boxShadow = "0 0 10px rgba(239,68,68,0.8)";
+        liveText.textContent = "Offline (Last seen " + Math.floor(diffSeconds) + "s ago)";
+        liveText.style.color = "#ef4444";
+    }
+}
+
 async function fetchStatus() {
     try {
-        const res = await fetch("/api/status");
+        const res = await fetch("/data");
         if(!res.ok) throw new Error("HTTP error " + res.status);
         const data = await res.json();
 
-        battery.innerText = data.battery;
-        temperature.innerText = data.temperature;
-        speedEl.innerText = data.speed;
-        steeringEl.innerText = data.steering;
+        // Format time to HH:MM:SS
+        const dateObj = new Date(data.time);
+        valTime.innerText = dateObj.toLocaleTimeString();
 
-        const targetAngle = data.steering * 10;
+        // Update live status indicator
+        updateLiveStatus(data.time);
+
+        valRobotId.innerText = data.robot_id;
+        valState.innerText = data.robot_state;
+        valLine.innerText = data.line;
+        valMotorL.innerText = data.motor_left;
+        valMotorR.innerText = data.motor_right;
+        valUltraF.innerText = data.ultra_front;
+        valUltraR.innerText = data.ultra_right;
+        valGrip.innerText = data.grip;
+        valGyroZ.innerText = data.gyro_z ? data.gyro_z.toFixed(2) : "--";
+        valHeading.innerText = data.heading ? data.heading.toFixed(2) : "--";
+
+        const targetAngle = data.heading || 0;
         currentAngle += (targetAngle - currentAngle) * 0.2;
 
         // Rotate arrow
@@ -177,7 +245,7 @@ async function fetchStatus() {
         robot.style.transform = `rotate(${currentAngle}deg)`;
 
         // Position trash bin according to front sensor
-        const frontDist = mapDistanceToPixels(data.obstacles.front);
+        const frontDist = mapDistanceToPixels(data.ultra_front);
         const angleRad = currentAngle * Math.PI / 180;
         const robotRect = robot.getBoundingClientRect();
         const centerX = robotRect.left + robotRect.width/2;
@@ -190,9 +258,11 @@ async function fetchStatus() {
         trash.style.left = `${obsX}px`;
         trash.style.top = `${obsY}px`;
 
-        log(`SPD:${data.speed} STR:${data.steering} BAT:${data.battery} FRONT_OBS:${data.obstacles.front}cm`);
+        log(`ID:${data.robot_id} ST:${data.robot_state} HDG:${data.heading?.toFixed(1)} UF:${data.ultra_front}`);
     } catch (err) {
         log("ERROR: telemetry lost");
+        liveDot.style.background = "#ef4444";
+        liveText.textContent = "Connection Lost";
         console.error(err);
     }
 }
