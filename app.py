@@ -18,6 +18,10 @@ def teardown_db(exception):
 def home():
     return render_template("index.html")
 
+@app.route("/about")
+def about2():
+    return render_template("about.html")
+
 
 # API: robot status
 @app.route("/data", methods=["GET", "POST"])
